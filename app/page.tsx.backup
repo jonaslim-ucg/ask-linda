@@ -1,0 +1,125 @@
+"use client";
+
+import { Bot, LogOut, User, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+export default function DashboardPage() {
+  const { data: session, isPending } = authClient.useSession();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await authClient.signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          toast.success("Signed out successfully!");
+          router.push("/auth/login");
+          router.refresh();
+        },
+      },
+    });
+  };
+
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="size-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="size-8" />
+            <span className="text-xl font-bold">Ask Linda</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                <User className="size-5 text-primary" />
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-sm font-medium">{session?.user?.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {session?.user?.email}
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="size-4 mr-2" />
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-2">
+            Welcome back, {session?.user?.name?.split(" ")[0]}!
+          </h1>
+          <p className="text-muted-foreground mb-8">
+            This is your dashboard. You are now signed in.
+          </p>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg border bg-card p-6">
+              <h3 className="font-semibold mb-2">Your Profile</h3>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Name:</span>{" "}
+                  {session?.user?.name}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Email:</span>{" "}
+                  {session?.user?.email}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Email Verified:</span>{" "}
+                  {session?.user?.emailVerified ? "Yes" : "No"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-6">
+              <h3 className="font-semibold mb-2">Session Info</h3>
+              <div className="space-y-2 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Session ID:</span>{" "}
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                    {session?.session?.id?.slice(0, 8)}...
+                  </code>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Expires:</span>{" "}
+                  {session?.session?.expiresAt
+                    ? new Date(session.session.expiresAt).toLocaleDateString()
+                    : "N/A"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-6">
+              <h3 className="font-semibold mb-2">Quick Actions</h3>
+              <div className="space-y-2">
+                <Button variant="outline" size="sm" className="w-full">
+                  Start New Chat
+                </Button>
+                <Button variant="outline" size="sm" className="w-full">
+                  View History
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

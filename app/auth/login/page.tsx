@@ -1,0 +1,259 @@
+"use client";
+
+import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { useState, Suspense } from "react";
+import Image from "next/image";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldContent,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+
+const signinSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type SigninFormData = z.infer<typeof signinSchema>;
+
+function LoginForm() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SigninFormData>({
+    resolver: zodResolver(signinSchema),
+    mode: "onBlur",
+  });
+
+  const onSubmit = async (data: SigninFormData) => {
+    setIsLoading(true);
+    setServerError(null);
+
+    try {
+      const { error, data: result } = await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
+        callbackURL: callbackUrl,
+      });
+
+      if (error) {
+        // Always show the server's error message if available
+        setServerError(error.message || "Invalid email or password");
+        return;
+      }
+
+      // Handle 2FA redirect (fallback — twoFactorClient plugin also handles this globally)
+      if (result && "twoFactorRedirect" in result && result.twoFactorRedirect) {
+        window.location.href = "/auth/two-factor";
+        return;
+      }
+
+      toast.success("Signed in successfully!");
+      router.push(callbackUrl);
+      router.refresh();
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "message" in err && typeof (err as { message?: string }).message === "string") {
+        setServerError((err as { message?: string }).message ?? "Something went wrong. Please try again.");
+      } else {
+        setServerError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className={cn("w-full max-w-md")}>
+        <div className="flex items-center justify-center mb-4">
+          <Image src="/stethoscope.svg" alt="Stethoscope" width={32} height={32} className="size-8 mr-2" />
+          <span className="text-xl font-bold">Ask Linda</span>
+        </div>
+        <div className="p-6">
+          <h2 className="text-2xl font-semibold">Welcome back</h2>
+          <p className="text-sm text-muted-foreground">
+            Enter your credentials to sign in
+          </p>
+        </div>
+        <div className="p-6 pt-0">
+          <form
+            className="flex flex-col gap-6"
+            onSubmit={handleSubmit(onSubmit)}
+          >
+            {serverError && (
+              <div
+                aria-live="polite"
+                className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-destructive text-sm"
+                role="alert"
+              >
+                {serverError}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-4">
+              <Field data-invalid={!!errors.email}>
+                <FieldLabel htmlFor="signin-email">
+                  Email
+                  <span aria-label="required" className="text-destructive">
+                    *
+                  </span>
+                </FieldLabel>
+                <FieldContent>
+                  <InputGroup aria-invalid={!!errors.email} className="h-12">
+                    <InputGroupAddon>
+                      <Mail aria-hidden="true" className="size-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      aria-describedby={
+                        errors.email ? "signin-email-error" : undefined
+                      }
+                      aria-invalid={!!errors.email}
+                      autoComplete="email"
+                      id="signin-email"
+                      inputMode="email"
+                      placeholder="name@example.com…"
+                      type="email"
+                      {...register("email")}
+                    />
+                  </InputGroup>
+                  {errors.email && (
+                    <FieldError id="signin-email-error">
+                      {errors.email.message}
+                    </FieldError>
+                  )}
+                </FieldContent>
+              </Field>
+
+              <Field data-invalid={!!errors.password}>
+                <FieldLabel htmlFor="signin-password">
+                  Password
+                  <span aria-label="required" className="text-destructive">
+                    *
+                  </span>
+                </FieldLabel>
+                <FieldContent>
+                  <InputGroup aria-invalid={!!errors.password} className="h-12">
+                    <InputGroupAddon>
+                      <Lock aria-hidden="true" className="size-4" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      aria-describedby={
+                        errors.password ? "signin-password-error" : undefined
+                      }
+                      aria-invalid={!!errors.password}
+                      autoComplete="current-password"
+                      id="signin-password"
+                      placeholder="Enter your password…"
+                      type={showPassword ? "text" : "password"}
+                      {...register("password")}
+                    />
+                    <InputGroupButton
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      className="min-h-8 min-w-8 touch-manipulation"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowPassword(!showPassword);
+                      }}
+                      type="button"
+                    >
+                      {showPassword ? (
+                        <EyeOff aria-hidden="true" className="size-4 mr-2" />
+                      ) : (
+                        <Eye aria-hidden="true" className="size-4 mr-2" />
+                      )}
+                    </InputGroupButton>
+                  </InputGroup>
+                  {errors.password && (
+                    <FieldError id="signin-password-error">
+                      {errors.password.message}
+                    </FieldError>
+                  )}
+                </FieldContent>
+              </Field>
+
+              <div className="flex items-center justify-between">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-primary underline underline-offset-4 hover:text-primary/80"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
+
+            <Button
+              aria-busy={isLoading}
+              className="min-h-11 w-full touch-manipulation"
+              data-loading={isLoading}
+              disabled={isLoading}
+              type="submit"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2
+                    aria-hidden="true"
+                    className="size-4 animate-spin"
+                  />
+                  Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/auth/signup"
+                className="text-primary underline underline-offset-4 hover:text-primary/80"
+              >
+                Sign up
+              </Link>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="size-8 animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
