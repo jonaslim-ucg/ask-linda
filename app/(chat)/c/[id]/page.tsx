@@ -70,13 +70,13 @@ export default function ChatPage() {
     id: string;
     content: string;
   } | null>(null);
-  const [chatMode, setChatModeState] = useState<ChatMode>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("chat-mode");
-      if (saved === "internal" || saved === "general") return saved;
-    }
-    return "internal";
-  });
+  const [chatMode, setChatModeState] = useState<ChatMode>("internal");
+
+  // Apply saved chat mode after mount to avoid hydration mismatch (localStorage only on client)
+  useEffect(() => {
+    const saved = localStorage.getItem("chat-mode");
+    if (saved === "internal" || saved === "general") setChatModeState(saved);
+  }, []);
 
   const setChatMode = (mode: ChatMode) => {
     setChatModeState(mode);
