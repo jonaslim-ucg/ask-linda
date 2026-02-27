@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import {
   BadgeCheck,
   Bell,
@@ -35,6 +36,24 @@ import {
 import { authClient } from "@/lib/auth-client"
 import { SettingsDialog } from "./settings-dialog"
 
+function PlaceholderNavUser() {
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" className="text-muted-foreground">
+          <Avatar className="h-8 w-8 rounded-lg">
+            <AvatarFallback className="rounded-lg">—</AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-medium">Loading...</span>
+            <span className="truncate text-xs">&nbsp;</span>
+          </div>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  )
+}
+
 export function NavUser({
   user,
 }: {
@@ -46,6 +65,8 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const handleSignOut = async () => {
     await authClient.signOut({
@@ -69,7 +90,10 @@ export function NavUser({
       .slice(0, 2)
   }
 
-  if (!user) return null
+  // Show placeholder until mounted so server and first client render match (avoids hydration mismatch)
+  if (!mounted || !user) {
+    return <PlaceholderNavUser />
+  }
 
   return (
     <SidebarMenu>

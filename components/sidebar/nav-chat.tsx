@@ -2,6 +2,7 @@
 
 import {
   Forward,
+  Loader2,
   MoreHorizontal,
   Trash2,
 } from "lucide-react"
@@ -132,6 +133,18 @@ export function NavChats() {
   const isEmpty = data?.[0]?.chats?.length === 0
   const isReachingEnd = isEmpty || (data && !data[data.length - 1]?.hasMore)
 
+  // Debug: log sidebar chat list state when ?debug=1
+  useEffect(() => {
+    if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("debug") !== "1") return;
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.debug("[NavChats] Fetch error", { error });
+    } else if (data) {
+      // eslint-disable-next-line no-console
+      console.debug("[NavChats] Loaded", { chatCount: chats.length, pageCount: data.length, isEmpty, isValidating });
+    }
+  }, [data, error, chats.length, isEmpty, isValidating]);
+
   // Intersection Observer for infinite scroll
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -233,9 +246,15 @@ export function NavChats() {
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <SidebarGroupLabel>Your Chats</SidebarGroupLabel>
         <SidebarMenu className="gap-0.5">
-          {/* Loading skeletons for initial load */}
+          {/* Loading: initial fetch */}
           {isLoadingInitial && (
             <>
+              <SidebarMenuItem>
+                <div className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin shrink-0" />
+                  <span>Loading chats...</span>
+                </div>
+              </SidebarMenuItem>
               <ChatSkeleton />
               <ChatSkeleton />
               <ChatSkeleton />
@@ -244,8 +263,25 @@ export function NavChats() {
             </>
           )}
 
+          {/* Error: failed to load */}
+          {error && !isLoadingInitial && (
+            <SidebarMenuItem>
+              <div className="flex flex-col gap-2 px-2 py-3 text-sm">
+                <p className="text-muted-foreground">Couldn&apos;t load chats</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => mutate()}
+                >
+                  Try again
+                </Button>
+              </div>
+            </SidebarMenuItem>
+          )}
+
           {/* Empty state */}
-          {isEmpty && !isLoadingInitial && (
+          {isEmpty && !isLoadingInitial && !error && (
             <SidebarMenuItem>
               <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                 No chats yet. Start a new conversation!
@@ -261,7 +297,7 @@ export function NavChats() {
                 isActive={pathname === `/c/${item.id}`}
                 className="h-8 data-[active=true]:bg-zinc-200 dark:data-[active=true]:bg-zinc-600"
               >
-                <Link href={`/c/${item.id}`}>
+                <Link href={`/c/${item.id}`} prefetch={false}>
                   <span className="font-light">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
@@ -293,8 +329,14 @@ export function NavChats() {
 
           {/* Infinite scroll trigger & loading more indicator */}
           <div ref={loadMoreRef} className="h-1" />
-          {isLoadingMore && !isLoadingInitial && (
+          {isLoadingMore && !isLoadingInitial && !error && (
             <>
+              <SidebarMenuItem>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin shrink-0" />
+                  <span>Loading more...</span>
+                </div>
+              </SidebarMenuItem>
               <ChatSkeleton />
               <ChatSkeleton />
               <ChatSkeleton />

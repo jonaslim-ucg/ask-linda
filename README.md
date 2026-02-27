@@ -44,6 +44,26 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### OpenAI API key
+
+1. Copy `.env.example` to `.env` if you haven’t already.
+2. In `.env`, set `OPENAI_API_KEY` to your key from [OpenAI Platform](https://platform.openai.com/api-keys) (e.g. `OPENAI_API_KEY=sk-proj-...`).
+3. Restart the dev server after changing `.env`.
+
+### Basic prompts to test the chat
+
+Try these in the chat (with **General Assistant** mode; no documents required):
+
+- **Hello, how are you?**
+- **What is 2 + 2?**
+- **Explain what a REST API is in one sentence.**
+- **List three tips for clear writing.**
+
+If you use **Internal Knowledge** and have uploaded documents, try:
+
+- **Summarize the main points of my document.**
+- **What does this document say about [topic]?**
+
 ## Documentation
 
 Full documentation is available in the [`docs/`](./docs/) folder:

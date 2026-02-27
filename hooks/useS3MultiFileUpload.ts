@@ -83,10 +83,25 @@ export const useS3MultiFileUpload = (config: UploadConfig = {}) => {
       );
       return true;
     } catch (err) {
-      console.error('Upload error:', err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : err != null
+              ? String(err)
+              : null;
+      if (message) {
+        console.error("Upload error:", message, err);
+      } else {
+        console.warn(
+          "S3 upload failed (no details). Add NEXT_S3_UPLOAD_* to .env — see docs/05-s3-storage.md",
+        );
+      }
       setFiles((prev) => prev.filter((f) => f.name !== file.name));
-      setError(`Failed to upload ${file.name}`);
-      toast.error(`Failed to upload ${file.name}`);
+      const userMessage = `Failed to upload ${file.name}`;
+      setError(userMessage);
+      toast.error(userMessage);
       return false;
     } finally {
       setIsUploading(false);

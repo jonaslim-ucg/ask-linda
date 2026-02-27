@@ -481,7 +481,7 @@ export default function DocumentsLibraryPage() {
           )}
           {doc.chatId && (
             <Button asChild size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
-              <Link href={`/c/${doc.chatId}`}>Open chat</Link>
+              <Link href={`/c/${doc.chatId}`} prefetch={false}>Open chat</Link>
             </Button>
           )}
           <AlertDialog>
@@ -566,7 +566,7 @@ export default function DocumentsLibraryPage() {
           </Button>
           {img.chatId && (
             <Button asChild size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
-              <Link href={`/c/${img.chatId}`}>Open chat</Link>
+              <Link href={`/c/${img.chatId}`} prefetch={false}>Open chat</Link>
             </Button>
           )}
           <AlertDialog>

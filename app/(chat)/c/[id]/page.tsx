@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { DebugPanel } from "@/components/debug/debug-panel";
 import { DocumentPreviewDialog } from "@/components/library";
 import { useChat } from "@ai-sdk/react";
 import type { FileUIPart, UIMessage } from "ai";
@@ -84,7 +85,7 @@ export default function ChatPage() {
   };
 
   // Fetch existing chat and messages
-  const { data: chatData } = useSWR<{
+  const { data: chatData, error: chatError, isLoading: isLoadingChat, mutate: mutateChat } = useSWR<{
     chat: { id: string; title: string; userId: string };
     messages: Array<{
       id: string;
@@ -94,6 +95,25 @@ export default function ChatPage() {
       createdAt: Date;
     }>;
   }>(!query ? `/api/chats/${chatId}` : null, fetcher);
+
+  // Reset refs when switching to a different chat so we load messages for the new chat
+  useEffect(() => {
+    hasLoadedMessages.current = false;
+    hasSentPendingMessage.current = false;
+    hasAppendedQuery.current = false;
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1") {
+      // eslint-disable-next-line no-console
+      console.debug("[Chat] Switched conversation", { chatId });
+    }
+  }, [chatId]);
+
+  // Debug: log errors when ?debug=1
+  useEffect(() => {
+    if (chatError && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1") {
+      // eslint-disable-next-line no-console
+      console.debug("[Chat] Fetch error", { chatId, error: chatError });
+    }
+  }, [chatError, chatId]);
 
   const chatTitle = customChatTitle ?? chatData?.chat.title ?? "New Chat";
   const [toolStatus, setToolStatus] = useState<string | null>(null);
@@ -175,57 +195,62 @@ export default function ChatPage() {
     },
   });
 
-  // Load existing messages when chat data is available
+  // Load existing messages when chat data is available (e.g. opened from sidebar).
+  // Only load when chatData is for the current chatId (avoids loading stale data from previous chat when switching).
+  // Skip when we just sent a pending message so we don't overwrite streamed response with stale API data.
   useEffect(() => {
-    if (chatData && !hasLoadedMessages.current && !query) {
-      hasLoadedMessages.current = true;
-      if (chatData.messages.length > 0) {
-        setMessages(
-          chatData.messages.map((msg) => ({
-            id: msg.id,
-            role: msg.role as "user" | "assistant",
-            parts: msg.parts as UIMessage["parts"],
-          }))
-        );
-      }
-    }
-  }, [chatData, setMessages, query]);
+    if (!chatData || hasLoadedMessages.current || query || hasSentPendingMessage.current) return;
+    if (chatData.chat.id !== chatId) return; // Stale data from a different chat
 
-  // Auto-send the initial query from URL params
+    hasLoadedMessages.current = true;
+    const messageList = chatData.messages.map((msg) => ({
+      id: msg.id,
+      role: msg.role as "user" | "assistant",
+      parts: msg.parts as UIMessage["parts"],
+    }));
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1") {
+      // eslint-disable-next-line no-console
+      console.debug("[Chat] Loading messages from API", { chatId, messageCount: messageList.length });
+    }
+    if (messageList.length > 0) {
+      setMessages(messageList);
+    }
+  }, [chatData, setMessages, query, chatId]);
+
+  // Auto-send the initial query from URL params. Only set hasSentPendingMessage when we actually send.
   useEffect(() => {
-    // Read mode directly from localStorage to avoid stale state on first render
     const resolvedMode = localStorage.getItem("chat-mode") === "general" ? "general" : "internal";
 
-    if (!hasSentPendingMessage.current) {
-      hasSentPendingMessage.current = true;
+    if (hasSentPendingMessage.current) return;
 
-      try {
-        const raw = sessionStorage.getItem(`pending-message:${chatId}`);
-        if (raw) {
-          sessionStorage.removeItem(`pending-message:${chatId}`);
-          const parsed = JSON.parse(raw) as { text: string; files?: FileUIPart[] };
-          const files = Array.isArray(parsed.files) ? parsed.files : [];
+    try {
+      const raw = sessionStorage.getItem(`pending-message:${chatId}`);
+      if (raw) {
+        sessionStorage.removeItem(`pending-message:${chatId}`);
+        const parsed = JSON.parse(raw) as { text: string; files?: FileUIPart[] };
+        const files = Array.isArray(parsed.files) ? parsed.files : [];
 
-          if (parsed.text?.trim() || files.length > 0) {
-            sendMessage(
-              {
-                role: "user",
-                parts: [{ type: "text", text: parsed.text ?? "" }, ...files],
-              },
-              {
-                body: { files, chatMode: resolvedMode },
-              },
-            );
-            return;
-          }
+        if (parsed.text?.trim() || files.length > 0) {
+          hasSentPendingMessage.current = true;
+          sendMessage(
+            {
+              role: "user",
+              parts: [{ type: "text", text: parsed.text ?? "" }, ...files],
+            },
+            {
+              body: { files, chatMode: resolvedMode },
+            },
+          );
+          return;
         }
-      } catch {
-        // ignore invalid stored payload
       }
+    } catch {
+      // ignore invalid stored payload
     }
 
     if (query && !hasAppendedQuery.current) {
       hasAppendedQuery.current = true;
+      hasSentPendingMessage.current = true;
       sendMessage(
         {
           role: "user",
@@ -235,7 +260,6 @@ export default function ChatPage() {
           body: { chatMode: resolvedMode },
         },
       );
-      // Clean up the URL
       window.history.replaceState({}, "", `/c/${chatId}`);
     }
   }, [query, sendMessage, chatId]);
@@ -432,6 +456,24 @@ export default function ChatPage() {
       {/* Chat conversation */}
       <Conversation className="flex-1">
         <ConversationContent className="mx-auto max-w-3xl">
+          {/* Loading state when switching conversations */}
+          {isLoadingChat && messages.length === 0 && !chatError && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+              <Loader />
+              <p className="text-sm">Loading conversation...</p>
+            </div>
+          )}
+
+          {/* Error state when chat failed to load */}
+          {!isLoadingChat && chatError && messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+              <p className="text-sm">Couldn&apos;t load this conversation.</p>
+              <Button variant="outline" size="sm" onClick={() => mutateChat()}>
+                Try again
+              </Button>
+            </div>
+          )}
+
           {messages.map((message: UIMessage, index: number) => {
             const isEditing = editingMessage?.id === message.id;
             const textContent = getTextFromParts(message.parts);
@@ -634,6 +676,20 @@ export default function ChatPage() {
         onOpenChange={setSourcePreviewOpen}
         documentId={previewingDocumentId}
         fileName={previewingFileName}
+      />
+
+      {/* Debug panel: add ?debug=1 to URL to show */}
+      <DebugPanel
+        title="Chat page"
+        entries={{
+          chatId,
+          isLoadingChat,
+          messagesCount: messages.length,
+          status,
+          chatError: chatError ? String(chatError.message ?? chatError) : null,
+          apiMessageCount: chatData?.messages?.length ?? "—",
+          query: query ?? "—",
+        }}
       />
     </div>
   );

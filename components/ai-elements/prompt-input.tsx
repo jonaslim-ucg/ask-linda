@@ -580,15 +580,8 @@ export const PromptInput = ({
             : undefined;
         const capped =
           typeof capacity === "number" ? sized.slice(0, capacity) : sized;
-        if (typeof capacity === "number" && sized.length > capacity) {
-          onError?.({
-            code: "max_files",
-            message: "Too many files. Some were not added.",
-          });
-        }
-        if (capped.length > 0) {
-          void onFilesAdded?.(capped);
-        }
+        const overCapacity =
+          typeof capacity === "number" && sized.length > capacity;
         const next: (FileUIPart & { id: string })[] = [];
         for (const file of capped) {
           next.push({
@@ -597,6 +590,20 @@ export const PromptInput = ({
             url: URL.createObjectURL(file),
             mediaType: file.type,
             filename: file.name,
+          });
+        }
+        // Defer callbacks so we don't update parent state while React is still in this setState
+        if (overCapacity || capped.length > 0) {
+          queueMicrotask(() => {
+            if (overCapacity) {
+              onError?.({
+                code: "max_files",
+                message: "Too many files. Some were not added.",
+              });
+            }
+            if (capped.length > 0) {
+              onFilesAdded?.(capped);
+            }
           });
         }
         return prev.concat(next);

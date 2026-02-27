@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/input-group";
 import Link from "next/link";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -44,21 +45,18 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/request-password-reset", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: data.email,
-          redirectTo: "/auth/reset-password",
-        }),
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/reset-password`
+          : "/auth/reset-password";
+
+      const { error } = await authClient.requestPasswordReset({
+        email: data.email,
+        redirectTo,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.message || "Failed to send reset email");
+      if (error) {
+        toast.error(error.message || "Failed to send reset email");
         return;
       }
 
